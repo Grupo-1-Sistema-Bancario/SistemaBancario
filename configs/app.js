@@ -11,6 +11,7 @@ import { requestLimit } from '../middlewares/request-limit.js';
 import { errorHandler } from '../middlewares/handle-errors.js';
 import userRoutes from '../src/users/user.routes.js';
 import favoriteRoutes from '../src/favorites/favorite.routes.js';
+import productRoutes from '../src/products/product.routes.js'
 
 const BASE_PATH = '/api/v1/bank'; 
 
@@ -26,6 +27,7 @@ const middlewares = (app) => {
 const routes = (app) => {
     app.use(`${BASE_PATH}/users`, userRoutes);
     app.use(`${BASE_PATH}/favorites`, favoriteRoutes);
+    app.use(`${BASE_PATH}/products`, productRoutes);
 
     app.get(`${BASE_PATH}/health`, (request, response) => {
         response.status(200).json({
