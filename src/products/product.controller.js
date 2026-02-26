@@ -3,12 +3,9 @@ import Product from './product.model.js';
 
 export const createProduct = async (req, res) => {
     try {
-
-        console.log("BODY QUE LLEGA:", req.body);
         const productData = req.body;
 
         const product = new Product(productData);
-        console.log("HOLAAAAAAAAA");
         await product.save();
 
         res.status(201).json({
