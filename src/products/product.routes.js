@@ -24,4 +24,5 @@ router.put(
 );
 router.put('/:id/activate', validateProductStatusChange, changeProductStatus);
 router.put('/:id/deactivate', validateProductStatusChange, changeProductStatus);
+
 export default router;

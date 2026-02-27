@@ -81,3 +81,18 @@ export const validateEditTransaction = [
     checkValidators
 
 ];
+
+export const validateReverseDeposit = [
+    validateJWT,
+    requireRole('ADMIN_ROLE'),
+    param('id')
+        .isMongoId()
+        .withMessage('El ID de la transacción debe ser un ID de Mongo válido'),
+    checkValidators
+];
+
+export const validateGetTopAccounts = [
+    validateJWT,
+    requireRole('ADMIN_ROLE'),
+    checkValidators
+];

@@ -45,7 +45,7 @@ export const createTransfer = async (req, res) => {
 
 export const createPayment = async (req, res) => {
     try {
-        const { accountNumberFrom, product, amount } = req.body;
+        const { accountNumberFrom, product } = req.body;
 
         // Buscar cuenta de origen por número de cuenta
         const originAccount = await Account.findOne({ accountNumber: accountNumberFrom });
@@ -53,6 +53,8 @@ export const createPayment = async (req, res) => {
 
         const productObj = await Product.findById(product);
         if (!productObj) return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+
+        const amount = productObj.price;
 
         if (originAccount.balance < amount) {
             return res.status(400).json({ success: false, message: 'Fondos insuficientes' });
@@ -154,5 +156,118 @@ export const editDeposit = async (req, res) => {
 
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error al actualizar el depósito', error: error.message });
+    }
+};
+
+export const reverseDeposit = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const transaction = await Transaction.findById(id);
+        if (!transaction) {
+            return res.status(404).json({ success: false, message: 'Depósito no encontrado' });
+        }
+
+        if (transaction.type !== 'DEPOSIT') {
+            return res.status(400).json({ success: false, message: 'Esta operación solo es válida para depósitos' });
+        }
+        if (transaction.status === 'REVERSED') {
+            return res.status(400).json({ success: false, message: 'Este depósito ya fue revertido previamente' });
+        }
+
+        const now = new Date();
+        const createdAt = new Date(transaction.createdAt);
+        const diff = now - createdAt;
+
+        if (diff > 60000) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'El tiempo límite para revertir (1 minuto) ha expirado' 
+            });
+        }
+
+        const userAccount = await Account.findById(transaction.accountTo);
+        if (!userAccount) {
+            return res.status(404).json({ success: false, message: 'La cuenta asociada al depósito no existe' });
+        }
+
+        if (userAccount.balance < transaction.amount) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'No se puede revertir: El usuario ya no cuenta con el saldo suficiente' 
+            });
+        }
+
+        userAccount.balance -= transaction.amount;
+        await userAccount.save();
+
+        transaction.status = 'REVERSED';
+        await transaction.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Depósito revertido correctamente',
+            data: {
+                transactionId: transaction._id,
+                newBalance: userAccount.balance
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error al procesar la reversión', 
+            error: error.message 
+        });
+    }
+};
+
+export const getTopAccounts = async (req, res) => {
+    try {
+        //Usamoe el aggregation para poder obtener las cuentas con más moviemiento de manera personalizada.
+        const topAccounts = await Transaction.aggregate([
+            {
+                $group: {
+                    _id: "$accountTo", 
+                    totalMovements: { $sum: 1 }, 
+                    totalAmount: { $sum: "$amount" } 
+                }
+            },
+            { $match: { _id: { $ne: null } } },
+            { $sort: { totalMovements: -1 } },
+            { $limit: 10 },
+            {
+                $lookup: {
+                    from: "accounts",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "accountDetails"
+                }
+            },
+            { $unwind: "$accountDetails" },
+            {
+                $project: {
+                    _id: 0,
+                    accountId: "$_id",
+                    totalMovements: 1,
+                    accountNumber: "$accountDetails.accountNumber",
+                    ownerName: "$accountDetails.name",
+                    balance: "$accountDetails.balance"
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Top 10 cuentas con más movimientos obtenido',
+            data: topAccounts
+        });
+
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error al obtener el top de cuentas', 
+            error: error.message 
+        });
     }
 };
