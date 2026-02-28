@@ -276,25 +276,15 @@ export const getLastFiveMovementsByUser = async (req, res) => {
     try {
         const { userId } = req.params;
 
-        // Verificar que sea ADMIN
-        if (req.user.role !== 'ADMIN_ROLE') {
-            return res.status(403).json({
-                success: false,
-                message: 'Solo el administrador puede ver movimientos de otros usuarios'
-            });
-        }
-
-        // Buscar cuenta del usuario por authUserId
-        const account = await Account.findOne({ authUserId: userId });
+        const account = await Account.findById(userId);
 
         if (!account) {
             return res.status(404).json({
                 success: false,
-                message: 'Cuenta no encontrada para este usuario'
+                message: 'Cuenta no encontrada'
             });
         }
 
-        // Buscar últimos 5 movimientos (entradas y salidas)
         const lastTransactions = await Transaction.find({
             $or: [
                 { accountFrom: account._id },
@@ -302,9 +292,7 @@ export const getLastFiveMovementsByUser = async (req, res) => {
             ]
         })
         .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('accountFrom', 'accountNumber')
-        .populate('accountTo', 'accountNumber');
+        .limit(5);
 
         res.status(200).json({
             success: true,
