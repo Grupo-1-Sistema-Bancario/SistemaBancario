@@ -6,6 +6,8 @@ import {
     getMyFavorites,
     updateFavoriteAlias,
     removeFavorite,
+    searchFavorites,
+    checkIsFavorite,
 } from './favorite.controller.js';
 
 const router = Router();
@@ -15,7 +17,17 @@ router.use(requestLimit);
 // Todas las rutas requieren autenticación (cualquier rol)
 router.use(validateJWT);
 
+
+router.get(
+    '/search', 
+    searchFavorites);
+
+router.get(
+    '/check/:accountNumber'
+    , checkIsFavorite);
 // Obtener mis favoritos
+
+
 router.get('/', getMyFavorites);
 
 // Agregar un favorito (con alias opcional)
