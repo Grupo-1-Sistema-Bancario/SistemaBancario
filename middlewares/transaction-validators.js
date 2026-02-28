@@ -96,3 +96,14 @@ export const validateGetTopAccounts = [
     requireRole('ADMIN_ROLE'),
     checkValidators
 ];
+
+export const validateGetLastFiveMovementsByUser = [
+    validateJWT,
+    requireRole('ADMIN_ROLE'),
+    param('userId')
+        .notEmpty()
+        .withMessage('El ID del usuario es requerido')
+        .isMongoId()
+        .withMessage('Debe ser un ID de Mongo válido'),
+    checkValidators
+];

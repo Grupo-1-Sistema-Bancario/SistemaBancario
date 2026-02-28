@@ -271,3 +271,52 @@ export const getTopAccounts = async (req, res) => {
         });
     }
 };
+
+export const getLastFiveMovementsByUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Verificar que sea ADMIN
+        if (req.user.role !== 'ADMIN_ROLE') {
+            return res.status(403).json({
+                success: false,
+                message: 'Solo el administrador puede ver movimientos de otros usuarios'
+            });
+        }
+
+        // Buscar cuenta del usuario por authUserId
+        const account = await Account.findOne({ authUserId: userId });
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cuenta no encontrada para este usuario'
+            });
+        }
+
+        // Buscar últimos 5 movimientos (entradas y salidas)
+        const lastTransactions = await Transaction.find({
+            $or: [
+                { accountFrom: account._id },
+                { accountTo: account._id }
+            ]
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate('accountFrom', 'accountNumber')
+        .populate('accountTo', 'accountNumber');
+
+        res.status(200).json({
+            success: true,
+            total: lastTransactions.length,
+            data: lastTransactions
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener los movimientos',
+            error: error.message
+        });
+    }
+};
