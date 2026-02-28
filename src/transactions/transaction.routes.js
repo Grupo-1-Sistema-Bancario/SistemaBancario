@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { validateEditTransaction, validateCreateDeposit, validateCreatePayment, validateCreateTransfer } from "../../middlewares/transaction-validators.js";
-import { createDeposit, createPayment, createTransfer, editDeposit } from "./transaction.controller.js";
+import { validateEditTransaction, validateCreateDeposit, validateCreatePayment, validateCreateTransfer, validateReverseDeposit, validateGetTopAccounts } from "../../middlewares/transaction-validators.js";
+import { createDeposit, createPayment, createTransfer, editDeposit, reverseDeposit, getTopAccounts } from "./transaction.controller.js";
 
 const router = Router();
 
@@ -24,5 +24,12 @@ router.put(
     validateEditTransaction,
     editDeposit
 );
-
+router.put('/reverse/:id',
+    validateReverseDeposit, 
+    reverseDeposit
+);
+router.get('/topAccounts', 
+    validateGetTopAccounts,
+    getTopAccounts
+);
 export default router;
