@@ -271,3 +271,40 @@ export const getTopAccounts = async (req, res) => {
         });
     }
 };
+
+export const getLastFiveMovementsByUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const account = await Account.findById(userId);
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cuenta no encontrada'
+            });
+        }
+
+        const lastTransactions = await Transaction.find({
+            $or: [
+                { accountFrom: account._id },
+                { accountTo: account._id }
+            ]
+        })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+        res.status(200).json({
+            success: true,
+            total: lastTransactions.length,
+            data: lastTransactions
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener los movimientos',
+            error: error.message
+        });
+    }
+};
