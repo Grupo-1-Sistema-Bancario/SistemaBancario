@@ -192,3 +192,63 @@ export const removeFavorite = async (req, res) => {
         });
     }
 };
+
+export const searchFavorites = async (req, res) => {
+    try {
+        const ownerAuthUserId = req.user.id;
+        const { q } = req.query;
+
+        if (!q || q.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Debes proporcionar un término de búsqueda.',
+            });
+        }
+
+        const regex = new RegExp(q.trim(), 'i');
+
+        const favorites = await Favorite.find({
+            ownerAuthUserId,
+            $or: [
+                { alias: { $regex: regex } },
+                { favoriteAccountNumber: { $regex: regex } },
+            ],
+        });
+
+        res.status(200).json({
+            success: true,
+            total: favorites.length,
+            data: favorites,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al buscar favoritos.',
+            error: error.message,
+        });
+    }
+};
+
+export const checkIsFavorite = async (req, res) => {
+    try {
+        const ownerAuthUserId = req.user.id;
+        const { accountNumber } = req.params;
+
+        const favorite = await Favorite.findOne({
+            ownerAuthUserId,
+            favoriteAccountNumber: accountNumber,
+        });
+
+        res.status(200).json({
+            success: true,
+            isFavorite: !!favorite,
+            data: favorite || null,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al verificar el favorito.',
+            error: error.message,
+        });
+    }
+};
