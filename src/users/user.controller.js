@@ -1,4 +1,5 @@
 import Account from './user.model.js';
+import { getExchangeRates } from '../../utils/currency.service.js';
 
 export const createAccount = async (req, res) => {
     try {
@@ -172,6 +173,55 @@ export const changeAccountStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error al intentar cambiar el estado de la cuenta',
+            error: error.message,
+        });
+    }
+};
+
+export const getMyAccountWithCurrencies = async (req, res) => {
+    try {
+        const authId = req.user.id; 
+        const account = await Account.findOne({ authUserId: authId });
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'Perfil bancario no encontrado para este usuario',
+            });
+        }
+
+        const rates = await getExchangeRates();
+        const balanceUSD = parseFloat((account.balance * (rates.USD || 0)).toFixed(2));
+        const balanceEUR = parseFloat((account.balance * (rates.EUR || 0)).toFixed(2));
+        const balanceMXN = parseFloat((account.balance * (rates.MXN || 0)).toFixed(2));
+        const balanceRUB = parseFloat((account.balance * (rates.RUB || 0)).toFixed(2));
+        const balanceJPY = parseFloat((account.balance * (rates.JPY || 0)).toFixed(2));
+        const balanceGBP = parseFloat((account.balance * (rates.GBP || 0)).toFixed(2));
+        const balanceCHF = parseFloat((account.balance * (rates.CHF || 0)).toFixed(2));
+        const balanceCNY = parseFloat((account.balance * (rates.CNY || 0)).toFixed(2));
+        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(2));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                balances: {
+                    GTQ: account.balance,
+                    USD: balanceUSD,
+                    EUR: balanceEUR,
+                    MXN: balanceMXN,
+                    RUB: balanceRUB,
+                    JPY: balanceJPY,
+                    GBP: balanceGBP,
+                    CHF: balanceCHF,
+                    CNY: balanceCNY,
+                    BTC: balanceBTC,
+                }
+            },
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener la cuenta con divisas',
             error: error.message,
         });
     }
