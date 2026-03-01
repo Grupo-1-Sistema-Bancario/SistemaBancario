@@ -5,7 +5,8 @@ import {
     getMyAccount, 
     updateAccount, 
     changeAccountStatus,
-    getAllAccounts 
+    getAllAccounts,
+    getMyAccountWithCurrencies
 } from './user.controller.js';
 
 import { 
@@ -57,6 +58,12 @@ router.put(
     '/:id/desactivate', 
     validateUserStatusChange, 
     changeAccountStatus
+);
+
+router.get(
+    '/my-account/currencies',
+    validateJWT,
+    getMyAccountWithCurrencies
 );
 
 export default router;
