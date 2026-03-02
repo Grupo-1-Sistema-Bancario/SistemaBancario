@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const favoriteSchema = mongoose.Schema(
     {
-        ownerAuthUserId: {
+        ownerAuthAccountId: {
             type: String,
             required: [true, 'El ID del usuario propietario es obligatorio'],
         },
@@ -24,6 +24,6 @@ const favoriteSchema = mongoose.Schema(
 );
 
 // Un usuario no puede agregar la misma cuenta como favorito dos veces
-favoriteSchema.index({ ownerAuthUserId: 1, favoriteAccountNumber: 1 }, { unique: true });
+favoriteSchema.index({ ownerAuthAccountId: 1, favoriteAccountNumber: 1 }, { unique: true });
 
 export default mongoose.model('Favorite', favoriteSchema);

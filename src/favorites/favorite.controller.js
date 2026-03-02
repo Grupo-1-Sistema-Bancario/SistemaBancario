@@ -1,5 +1,6 @@
 import Favorite from './favorite.model.js';
-import Account from '../users/user.model.js';
+import Account from '../accounts/account.model.js';
+import Transaction from '../transactions/transaction.model.js';
 
 /**
  * Agregar un usuario como favorito (con alias opcional)
@@ -7,7 +8,7 @@ import Account from '../users/user.model.js';
  */
 export const addFavorite = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
         const { favoriteAccountNumber, alias } = req.body;
 
         if (!favoriteAccountNumber) {
@@ -31,7 +32,7 @@ export const addFavorite = async (req, res) => {
         }
 
         // Verificar que el usuario no se agrega a sí mismo
-        if (favoriteAccount.authUserId === ownerAuthUserId) {
+        if (favoriteAccount.authAccountId === ownerAuthAccountId) {
             return res.status(400).json({
                 success: false,
                 message: 'No puedes agregarte a ti mismo como favorito.',
@@ -39,7 +40,7 @@ export const addFavorite = async (req, res) => {
         }
 
         const newFavorite = new Favorite({
-            ownerAuthUserId,
+            ownerAuthAccountId,
             favoriteAccountNumber,
             alias: alias || null,
         });
@@ -73,9 +74,9 @@ export const addFavorite = async (req, res) => {
  */
 export const getMyFavorites = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
 
-        const favorites = await Favorite.find({ ownerAuthUserId });
+        const favorites = await Favorite.find({ ownerAuthAccountId });
 
         res.status(200).json({
             success: true,
@@ -97,7 +98,7 @@ export const getMyFavorites = async (req, res) => {
  */
 export const updateFavoriteAlias = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
         const { favoriteId } = req.params;
         const { alias } = req.body;
 
@@ -117,7 +118,7 @@ export const updateFavoriteAlias = async (req, res) => {
 
         const favorite = await Favorite.findOne({
             _id: favoriteId,
-            ownerAuthUserId,
+            ownerAuthAccountId,
         });
 
         if (!favorite) {
@@ -157,12 +158,12 @@ export const updateFavoriteAlias = async (req, res) => {
  */
 export const removeFavorite = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
         const { favoriteId } = req.params;
 
         const favorite = await Favorite.findOneAndDelete({
             _id: favoriteId,
-            ownerAuthUserId,
+            ownerAuthAccountId,
         });
 
         if (!favorite) {
@@ -195,7 +196,7 @@ export const removeFavorite = async (req, res) => {
 
 export const searchFavorites = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
         const { q } = req.query;
 
         if (!q || q.trim() === '') {
@@ -208,7 +209,7 @@ export const searchFavorites = async (req, res) => {
         const regex = new RegExp(q.trim(), 'i');
 
         const favorites = await Favorite.find({
-            ownerAuthUserId,
+            ownerAuthAccountId,
             $or: [
                 { alias: { $regex: regex } },
                 { favoriteAccountNumber: { $regex: regex } },
@@ -231,11 +232,11 @@ export const searchFavorites = async (req, res) => {
 
 export const checkIsFavorite = async (req, res) => {
     try {
-        const ownerAuthUserId = req.user.id;
+        const ownerAuthAccountId = req.account.id;
         const { accountNumber } = req.params;
 
         const favorite = await Favorite.findOne({
-            ownerAuthUserId,
+            ownerAuthAccountId,
             favoriteAccountNumber: accountNumber,
         });
 
@@ -250,5 +251,74 @@ export const checkIsFavorite = async (req, res) => {
             message: 'Error al verificar el favorito.',
             error: error.message,
         });
+    }
+};
+
+export const transferByAlias = async (req, res) => {
+    try {
+        const ownerAuthAccountId = req.account.id;
+        const { alias, amount, description } = req.body;
+
+        const originAccount = await Account.findOne({ authAccountId: ownerAuthAccountId });
+        if (!originAccount) {
+            return res.status(404).json({ success: false, message: 'Tu cuenta bancaria no fue encontrada' });
+        }
+
+        const favorite = await Favorite.findOne({ ownerAuthAccountId, alias });
+        if (!favorite) {
+            return res.status(404).json({ success: false, message: `No se encontró ningún favorito con el alias '${alias}'` });
+        }
+
+        const destAccount = await Account.findOne({ accountNumber: favorite.favoriteAccountNumber });
+        if (!destAccount) {
+            return res.status(404).json({ success: false, message: 'La cuenta destino no existe en el sistema' });
+        }
+
+        if (originAccount.balance < amount) {
+            return res.status(400).json({ success: false, message: 'Fondos insuficientes' });
+        }
+
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const todayTransfers = await Transaction.aggregate([
+            {
+                $match: {
+                    accountFrom: originAccount._id,
+                    type: 'TRANSFER',
+                    createdAt: { $gte: startOfDay }
+                }
+            },
+            {
+                $group: { _id: null, total: { $sum: '$amount' } }
+            }
+        ]);
+
+        const totalTransferredToday = todayTransfers.length > 0 ? todayTransfers[0].total : 0;
+
+        if (totalTransferredToday + amount > 10000) {
+            return res.status(400).json({
+                success: false,
+                message: `Límite diario excedido. Has transferido Q${totalTransferredToday} hoy. Tu límite restante es Q${10000 - totalTransferredToday}.`
+            });
+        }
+
+        const transaction = new Transaction({
+            accountFrom: originAccount._id,
+            accountTo: destAccount._id,
+            type: 'TRANSFER',
+            amount,
+            description: description || `Transferencia a favorito: ${alias}`
+        });
+
+        await transaction.save();
+
+        await Account.findByIdAndUpdate(originAccount._id, { $inc: { balance: -amount } });
+        await Account.findByIdAndUpdate(destAccount._id, { $inc: { balance: amount } });
+
+        res.status(201).json({ success: true, message: 'Transferencia por alias exitosa', data: transaction });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error en la transferencia por alias', error: error.message });
     }
 };
