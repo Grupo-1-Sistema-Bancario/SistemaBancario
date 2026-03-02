@@ -8,7 +8,10 @@ import {
     removeFavorite,
     searchFavorites,
     checkIsFavorite,
+    transferByAlias
 } from './favorite.controller.js';
+
+import { validateTransferByAlias } from '../../middlewares/favorite-validators.js';
 
 const router = Router();
 
@@ -38,5 +41,7 @@ router.put('/:favoriteId', updateFavoriteAlias);
 
 // Eliminar un favorito
 router.delete('/:favoriteId', removeFavorite);
+
+router.post('/transfer', validateTransferByAlias, transferByAlias);
 
 export default router;

@@ -6,7 +6,7 @@
  */
 export const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user) {
+    if (!req.account) {
       return res.status(401).json({
         success: false,
         message: 'Usuario no autenticado',
@@ -14,7 +14,7 @@ export const requireRole = (...allowedRoles) => {
       });
     }
 
-    const userRole = req.user.role;
+    const userRole = req.account.role;
 
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({

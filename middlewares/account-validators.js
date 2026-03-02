@@ -3,12 +3,12 @@ import { checkValidators } from './checkValidators.js';
 import { validateJWT } from './validate-JWT.js';
 import { requireRole } from './validate-role.js';
 
-export const validateCreateUser = [
+export const validateCreateAccount = [
     validateJWT, 
     requireRole('ADMIN_ROLE'), 
-    body('authUserId')
+    body('authAccountId')
         .notEmpty()
-        .withMessage('El ID de autenticación del usuario es requerido'),
+        .withMessage('El ID de autenticación de la cuenta es requerido'),
     body('dpi')
         .notEmpty()
         .withMessage('El DPI es requerido')
@@ -34,7 +34,7 @@ export const validateCreateUser = [
     checkValidators,
 ];
 
-export const validateUpdateUserRequest = [
+export const validateUpdateAccountRequest = [
     validateJWT,
     param('id')
         .isMongoId()
@@ -50,7 +50,7 @@ export const validateUpdateUserRequest = [
 ];
 
 // Validaciones para activar/desactivar
-export const validateUserStatusChange = [
+export const validateAccountStatusChange = [
     validateJWT,
     requireRole('ADMIN_ROLE'), // Solo un admin puede bloquear/desbloquear cuentas
     param('id')

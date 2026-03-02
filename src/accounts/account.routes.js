@@ -7,13 +7,13 @@ import {
     changeAccountStatus,
     getAllAccounts,
     getMyAccountWithCurrencies
-} from './user.controller.js';
+} from './account.controller.js';
 
 import { 
-    validateCreateUser, 
-    validateUpdateUserRequest, 
-    validateUserStatusChange 
-} from '../../middlewares/user-validators.js';
+    validateCreateAccount, 
+    validateUpdateAccountRequest, 
+    validateAccountStatusChange 
+} from '../../middlewares/account-validators.js';
 
 import { requestLimit } from '../../middlewares/request-limit.js';
 import { validateJWT } from '../../middlewares/validate-JWT.js';
@@ -25,7 +25,7 @@ router.use(requestLimit);
 
 router.post(
     '/create',
-    validateCreateUser, 
+    validateCreateAccount, 
     createAccount
 );
 
@@ -44,19 +44,19 @@ router.get(
 
 router.put(
     '/:id',
-    validateUpdateUserRequest,
+    validateUpdateAccountRequest,
     updateAccount
 );
 
 router.put(
     '/:id/activate', 
-    validateUserStatusChange, 
+    validateAccountStatusChange, 
     changeAccountStatus
 );
 
 router.put(
     '/:id/desactivate', 
-    validateUserStatusChange, 
+    validateAccountStatusChange, 
     changeAccountStatus
 );
 

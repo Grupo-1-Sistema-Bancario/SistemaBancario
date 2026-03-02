@@ -16,7 +16,6 @@ const validateAmount =
 
 export const validateCreateTransfer = [
     validateJWT,
-    requireRole('USER_ROLE'),
     body('accountNumberFrom')
         .notEmpty()
         .withMessage('El número de cuenta de origen es requerido')
@@ -38,7 +37,6 @@ body('description')
 ]
 export const validateCreatePayment = [
     validateJWT,
-    requireRole('USER_ROLE'),
     body('type')
         .isIn(['PAYMENT'])
         .withMessage('El tipo de transacción debe ser PAYMENT'),
@@ -97,13 +95,13 @@ export const validateGetTopAccounts = [
     checkValidators
 ];
 
-export const validateGetLastFiveMovementsByUser = [
+export const validateGetLastFiveMovementsByAccount = [
     validateJWT,
     requireRole('ADMIN_ROLE'),
-    param('userId')
+    param('accountId')
         .notEmpty()
-        .withMessage('El ID del usuario es requerido')
+        .withMessage('El ID de la cuenta es requerido')
         .isMongoId()
-        .withMessage('Debe ser un ID de Mongo válido'),
+        .withMessage('El ID de la cuenta debe ser un ID de Mongo válido'),
     checkValidators
 ];
