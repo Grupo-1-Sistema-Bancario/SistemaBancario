@@ -1,4 +1,4 @@
-import Account from '../src/users/user.model.js';
+import Account from '../src/accounts/account.model.js';
 // Seeder para crear por defecti una cuenta para el banco
 
 export const seedBankAccount = async () => {
@@ -10,7 +10,7 @@ export const seedBankAccount = async () => {
             return;
         }
         const bankAccount = new Account({
-            authUserId: 'BANK_ACCOUNT',
+            authAccountId: 'BANK_ACCOUNT',
             accountNumber: '0000000000',
             dpi: '0000000000000',
             address: 'Fundación Kinal, Ciudad de Guatemala',
