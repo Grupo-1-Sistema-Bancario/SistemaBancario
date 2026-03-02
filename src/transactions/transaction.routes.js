@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { validateEditTransaction, validateCreateDeposit, validateCreatePayment, validateCreateTransfer, validateReverseDeposit, validateGetTopAccounts, validateGetLastFiveMovementsByUser } from "../../middlewares/transaction-validators.js";
-import { createDeposit, createPayment, createTransfer, editDeposit, reverseDeposit, getTopAccounts, getLastFiveMovementsByUser } from "./transaction.controller.js";
+import { validateEditTransaction, validateCreateDeposit, validateCreatePayment, validateCreateTransfer, validateReverseDeposit, validateGetTopAccounts, validateGetLastFiveMovementsByAccount } from "../../middlewares/transaction-validators.js";
+import { createDeposit, createPayment, createTransfer, editDeposit, reverseDeposit, getTopAccounts, getLastFiveMovementsByAccount, getMyTransactionHistory } from "./transaction.controller.js";
+import { validateJWT } from '../../middlewares/validate-JWT.js';
 
 const router = Router();
 
@@ -32,8 +33,15 @@ router.get('/topAccounts',
     validateGetTopAccounts,
     getTopAccounts
 );
-router.get('/admin/last-movements/:userId',
-    validateGetLastFiveMovementsByUser,
-    getLastFiveMovementsByUser
+router.get('/admin/last-movements/:accountId',
+    validateGetLastFiveMovementsByAccount,
+    getLastFiveMovementsByAccount
 );
+
+router.get(
+    '/history',
+    validateJWT,
+    getMyTransactionHistory
+);
+
 export default router;
