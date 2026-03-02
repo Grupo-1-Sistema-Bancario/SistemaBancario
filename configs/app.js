@@ -4,14 +4,20 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './swagger.config.js';
 import { dbConnection } from './db.js';
 import { corsOptions } from './cors-configuration.js';
 import { helmetConfiguration } from './helmet-configuration.js';
 import { requestLimit } from '../middlewares/request-limit.js';
 import { errorHandler } from '../middlewares/handle-errors.js';
-import userRoutes from '../src/users/user.routes.js'
+import accountRoutes from '../src/accounts/account.routes.js';
+import favoriteRoutes from '../src/favorites/favorite.routes.js';
+import productRoutes from '../src/products/product.routes.js'
+import transactionRoutes from '../src/transactions/transaction.routes.js';
+import {seedBankAccount} from './server.js';
 
-const BASE_PATH = '/api/v1/bank'; 
+const BASE_PATH = '/api/v1/bank';
 
 const middlewares = (app) => {
     app.use(express.urlencoded({ extended: false, limit: '10mb' }));
@@ -23,7 +29,11 @@ const middlewares = (app) => {
 }
 
 const routes = (app) => {
-    app.use(`${BASE_PATH}/users`, userRoutes);
+    app.use(`${BASE_PATH}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+    app.use(`${BASE_PATH}/accounts`, accountRoutes);
+    app.use(`${BASE_PATH}/favorites`, favoriteRoutes);
+    app.use(`${BASE_PATH}/products`, productRoutes);
+    app.use(`${BASE_PATH}/transactions`, transactionRoutes);
 
     app.get(`${BASE_PATH}/health`, (request, response) => {
         response.status(200).json({
@@ -48,6 +58,7 @@ export const initServer = async () => {
 
     try {
         await dbConnection();
+        await seedBankAccount();
         middlewares(app);
         routes(app);
 

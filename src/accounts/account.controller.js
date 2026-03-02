@@ -1,13 +1,14 @@
-import Account from './user.model.js';
+import Account from './account.model.js';
+import { getExchangeRates } from '../../utils/currency.service.js';
 
 export const createAccount = async (req, res) => {
     try {
-        const { authUserId, dpi, address, phone, jobName, monthlyIncome } = req.body; 
+        const { authAccountId, dpi, address, phone, jobName, monthlyIncome } = req.body; 
 
-        if (!authUserId) {
+        if (!authAccountId) {
              return res.status(400).json({
                 success: false,
-                message: 'Debes proporcionar el ID del usuario al que le vas a crear la cuenta.'
+                message: 'Debes proporcionar el ID de la cuenta a la que le vas a crear la cuenta bancaria.'
             });
         }
 
@@ -21,7 +22,7 @@ export const createAccount = async (req, res) => {
         const generatedAccountNumber = Math.floor(Math.random() * 9000000000) + 1000000000;
 
         const accountData = {
-            authUserId, // Este es el ID del cliente de .NET
+            authAccountId,
             accountNumber: generatedAccountNumber.toString(),
             dpi,
             address,
@@ -44,7 +45,7 @@ export const createAccount = async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
-                message: 'Este usuario ya tiene una cuenta bancaria asignada.'
+                message: 'Esta cuenta ya tiene una cuenta bancaria asignada.'
             });
         }
 
@@ -58,13 +59,13 @@ export const createAccount = async (req, res) => {
 
 export const getMyAccount = async (req, res) => {
     try {
-        const authId = req.user.id; 
-        const account = await Account.findOne({ authUserId: authId });
+        const authId = req.account.id; 
+        const account = await Account.findOne({ authAccountId: authId });
 
         if (!account) {
             return res.status(404).json({
                 success: false,
-                message: 'Perfil bancario no encontrado para este usuario',
+                message: 'Perfil bancario no encontrado para esta cuenta',
             });
         }
 
@@ -112,10 +113,10 @@ export const updateAccount = async (req, res) => {
             });
         }
 
-        if (req.user.role !== 'ADMIN_ROLE' && currentAccount.authUserId !== req.user.id) {
+        if (req.account.role !== 'ADMIN_ROLE' && currentAccount.authAccountId !== req.account.id) {
             return res.status(403).json({
                 success: false,
-                message: 'Acceso denegado. No tienes permisos para editar la cuenta de otro usuario.',
+                message: 'Acceso denegado. No tienes permisos para editar la cuenta de otra cuenta.',
             });
         }
 
@@ -172,6 +173,55 @@ export const changeAccountStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error al intentar cambiar el estado de la cuenta',
+            error: error.message,
+        });
+    }
+};
+
+export const getMyAccountWithCurrencies = async (req, res) => {
+    try {
+        const authId = req.account.id; 
+        const account = await Account.findOne({ authAccountId: authId });
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'Perfil bancario no encontrado para esta cuenta',
+            });
+        }
+
+        const rates = await getExchangeRates();
+        const balanceUSD = parseFloat((account.balance * (rates.USD || 0)).toFixed(2));
+        const balanceEUR = parseFloat((account.balance * (rates.EUR || 0)).toFixed(2));
+        const balanceMXN = parseFloat((account.balance * (rates.MXN || 0)).toFixed(2));
+        const balanceRUB = parseFloat((account.balance * (rates.RUB || 0)).toFixed(2));
+        const balanceJPY = parseFloat((account.balance * (rates.JPY || 0)).toFixed(2));
+        const balanceGBP = parseFloat((account.balance * (rates.GBP || 0)).toFixed(2));
+        const balanceCHF = parseFloat((account.balance * (rates.CHF || 0)).toFixed(2));
+        const balanceCNY = parseFloat((account.balance * (rates.CNY || 0)).toFixed(2));
+        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(2));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                balances: {
+                    GTQ: account.balance,
+                    USD: balanceUSD,
+                    EUR: balanceEUR,
+                    MXN: balanceMXN,
+                    RUB: balanceRUB,
+                    JPY: balanceJPY,
+                    GBP: balanceGBP,
+                    CHF: balanceCHF,
+                    CNY: balanceCNY,
+                    BTC: balanceBTC,
+                }
+            },
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener la cuenta con divisas',
             error: error.message,
         });
     }

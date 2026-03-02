@@ -41,7 +41,7 @@ export const validateJWT = (req, res, next) => {
             );
         }
 
-        req.user = {
+        req.account = {
             id: decoded.sub, // userId del servicio de autenticación
             jti: decoded.jti, // ID único del token
             iat: decoded.iat, // Emitido en

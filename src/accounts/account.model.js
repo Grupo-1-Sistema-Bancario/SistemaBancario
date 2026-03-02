@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const accountSchema = mongoose.Schema(
     {
-        authUserId: {
+        authAccountId: {
             type: String,
             required: [true, 'El ID de autenticación es obligatorio'],
             unique: true 
@@ -50,6 +50,6 @@ const accountSchema = mongoose.Schema(
 );
 
 accountSchema.index({ accountNumber: 1 });
-accountSchema.index({ authUserId: 1 });
+accountSchema.index({ authAccountId: 1 });
 
 export default mongoose.model('Account', accountSchema);
