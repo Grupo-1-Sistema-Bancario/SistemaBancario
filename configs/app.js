@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './swagger.config.js';
 import { dbConnection } from './db.js';
 import { corsOptions } from './cors-configuration.js';
 import { helmetConfiguration } from './helmet-configuration.js';
@@ -27,6 +29,7 @@ const middlewares = (app) => {
 }
 
 const routes = (app) => {
+    app.use(`${BASE_PATH}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerDocument));
     app.use(`${BASE_PATH}/accounts`, accountRoutes);
     app.use(`${BASE_PATH}/favorites`, favoriteRoutes);
     app.use(`${BASE_PATH}/products`, productRoutes);
