@@ -41,6 +41,14 @@ const accountSchema = mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
+        },
+        role: {
+            type: String,
+            enum: ['USER_ROLE', 'ADMIN_ROLE'],
+        },
+        loyaltyPoints: {
+            type: Number,
+            default: 0
         }
     },
     {
@@ -51,5 +59,6 @@ const accountSchema = mongoose.Schema(
 
 accountSchema.index({ accountNumber: 1 });
 accountSchema.index({ authAccountId: 1 });
+accountSchema.index({ role: 1 });
 
 export default mongoose.model('Account', accountSchema);

@@ -19,6 +19,22 @@ export const createAccount = async (req, res) => {
             });
         }
 
+        //Consultar el rol real a .NET
+        // Reenviamos el token del administrador actual para tener permisos
+        const roleResponse = await fetch(`http://localhost:5023/api/v1/users/${authAccountId}/roles`, {
+            headers: { 'Authorization': req.headers.authorization }
+        });
+
+        if (!roleResponse.ok) {
+            return res.status(404).json({
+                success: false,
+                message: 'No se pudo verificar el rol del usuario. Asegúrate de que el authAccountId exista en el AuthService.'
+            });
+        }
+
+        const rolesArray = await roleResponse.json();
+        const finalRole = rolesArray.includes('ADMIN_ROLE') ? 'ADMIN_ROLE' : 'USER_ROLE';
+
         const generatedAccountNumber = Math.floor(Math.random() * 9000000000) + 1000000000;
 
         const accountData = {
@@ -29,7 +45,8 @@ export const createAccount = async (req, res) => {
             phone,
             jobName,
             monthlyIncome,
-            balance: 0 
+            balance: 0,
+            role: finalRole // Ahora el rol está sincronizado con .NET
         };
 
         const newAccount = new Account(accountData);
@@ -113,10 +130,17 @@ export const updateAccount = async (req, res) => {
             });
         }
 
+        if (req.account.role === 'ADMIN_ROLE' && currentAccount.role === 'ADMIN_ROLE' && currentAccount.authAccountId !== req.account.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Acceso denegado: No puedes editar los datos bancarios de otro administrador.'
+            });
+        }
+
         if (req.account.role !== 'ADMIN_ROLE' && currentAccount.authAccountId !== req.account.id) {
             return res.status(403).json({
                 success: false,
-                message: 'Acceso denegado. No tienes permisos para editar la cuenta de otra cuenta.',
+                message: 'Acceso denegado: No tienes permisos para editar la cuenta de otro usuario.',
             });
         }
 
@@ -223,6 +247,44 @@ export const getMyAccountWithCurrencies = async (req, res) => {
             success: false,
             message: 'Error al obtener la cuenta con divisas',
             error: error.message,
+        });
+    }
+};
+
+export const getPendingBankUsers = async (req, res) => {
+    try {
+        //Obtener todos los usuarios "USER_ROLE" desde el AuthService (.NET)
+        //Reenviamos el token JWT del administrador actual para tener permisos
+        const authResponse = await fetch('http://localhost:5023/api/v1/users/by-role/USER_ROLE', {
+            headers: { 'Authorization': req.headers.authorization }
+        });
+
+        if (!authResponse.ok) {
+            throw new Error('Error de comunicación con el servicio de autenticación');
+        }
+
+        const authUsers = await authResponse.json();
+
+        //Obtener todas las cuentas bancarias registradas en Mongo
+        const existingAccounts = await Account.find({}, 'authAccountId');
+        const existingAuthIds = existingAccounts.map(acc => acc.authAccountId);
+
+        //Filtrar los usuarios que están verificados pero no existen en Mongo
+        const usersWithoutBankAccount = authUsers.filter(user => 
+            user.isEmailVerified && !existingAuthIds.includes(user.id)
+        );
+
+        res.status(200).json({
+            success: true,
+            total: usersWithoutBankAccount.length,
+            data: usersWithoutBankAccount
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al cruzar datos para obtener usuarios pendientes',
+            error: error.message
         });
     }
 };
