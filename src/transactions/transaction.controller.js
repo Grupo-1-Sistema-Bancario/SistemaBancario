@@ -71,35 +71,60 @@ export const createTransfer = async (req, res) => {
 
 export const createPayment = async (req, res) => {
     try {
-        const { accountNumberFrom, product } = req.body;
+        const { accountNumberFrom, product, usePoints = false } = req.body;
 
-        // Buscar cuenta de origen por número de cuenta
         const originAccount = await Account.findOne({ accountNumber: accountNumberFrom });
-        if (!originAccount) return res.status(404).json({ success: false, message: 'Cuenta de origen no encontrada' });
+        if (!originAccount) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
 
         const productObj = await Product.findById(product);
         if (!productObj) return res.status(404).json({ success: false, message: 'Producto no encontrado' });
 
-        const amount = productObj.price;
+        let amountToPay = productObj.price;
+        let pointsUsed = 0;
 
-        if (originAccount.balance < amount) {
+        // Lógica de canje de puntos
+        if (usePoints && originAccount.loyaltyPoints > 0) {
+            if (originAccount.loyaltyPoints >= amountToPay) {
+                pointsUsed = amountToPay;
+                amountToPay = 0; // El producto sale gratis
+            } else {
+                pointsUsed = originAccount.loyaltyPoints;
+                amountToPay -= pointsUsed; // Descuento parcial
+            }
+        }
+
+        if (originAccount.balance < amountToPay) {
             return res.status(400).json({ success: false, message: 'Fondos insuficientes' });
         }
+
+        // Calcular nuevos puntos ganados (solo sobre el dinero real pagado, 1 punto por cada Q10)
+        const pointsEarned = Math.floor(amountToPay / 10);
 
         const transaction = new Transaction({
             accountFrom: originAccount._id,
             type: 'PAYMENT',
-            amount,
+            amount: productObj.price,
             product: productObj._id,
-            description: `Pago de servicio/producto: ${productObj.name}`
+            description: `Pago de: ${productObj.name}. Puntos usados: ${pointsUsed}. Puntos ganados: ${pointsEarned}`
         });
 
         await transaction.save();
 
-        // Actualizar saldo de la cuenta de origen
-        await Account.findByIdAndUpdate(originAccount._id, { $inc: { balance: -amount } });
+        // Actualizar balance y puntos atómicamente
+        originAccount.balance -= amountToPay;
+        originAccount.loyaltyPoints = (originAccount.loyaltyPoints - pointsUsed) + pointsEarned;
+        await originAccount.save();
 
-        res.status(201).json({ success: true, message: 'Pago realizado con éxito', data: transaction });
+        res.status(201).json({ 
+            success: true, 
+            message: 'Pago procesado', 
+            data: {
+                transaction,
+                discountApplied: pointsUsed,
+                pointsEarned,
+                newLoyaltyBalance: originAccount.loyaltyPoints
+            } 
+        });
 
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error en pago', error: error.message });
