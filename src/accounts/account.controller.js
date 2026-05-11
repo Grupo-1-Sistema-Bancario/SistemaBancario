@@ -1,6 +1,7 @@
 import Account from './account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
 import PendingAccount from '../pendingAccounts/pendingAccounts.model.js';
+import { sendEmail } from '../../helpers/email-service.js';
 
 export const createAccount = async (req, res) => {
     try {
@@ -58,7 +59,27 @@ export const createAccount = async (req, res) => {
             { authAccountId },
             { status: 'APPROVED' },
             { new: true }
+            
         );
+
+        // Enviar correo al cliente sobre la aprobación de su cuenta
+        const userResponse = await fetch(`http://localhost:5023/api/v1/users/by-role/USER_ROLE`, {
+            headers: { 'Authorization': req.headers.authorization }
+        });
+
+
+        if (!userResponse.ok) {
+            return res.status(404).json({
+                success: false,
+                message: 'No se pudo obtener la información del cliente.'
+            });
+        }
+
+
+        const userData = await userResponse.json();
+        console.log(userData.email);
+        console.log("Enviando correo a:", userData.email);
+        await sendEmail(userData.email, 'APPROVED');
 
         res.status(201).json({
             success: true,
