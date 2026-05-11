@@ -1,5 +1,6 @@
 import Account from './account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
+import PendingAccount from '../pendingAccounts/pendingAccounts.model.js';
 
 export const createAccount = async (req, res) => {
     try {
@@ -51,6 +52,13 @@ export const createAccount = async (req, res) => {
 
         const newAccount = new Account(accountData);
         await newAccount.save();
+
+        // Cambiar estado de la solicitud pendiente a "APPROVED" si existe
+        await PendingAccount.findOneAndUpdate(
+            { authAccountId },
+            { status: 'APPROVED' },
+            { new: true }
+        );
 
         res.status(201).json({
             success: true,
