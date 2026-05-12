@@ -14,7 +14,7 @@ export const sendEmail = async (clientEmail, clienteStatus) => {
     const statusMessages = {
         'APPROVED': {
             subject: '¡Bienvenido a Astra Bank! - Solicitud Aprobada',
-            body: `Estimado cliente,\n\nEs un placer informarle que su solicitud de cuenta en Astra Bank ha sido APROBADA. A partir de este momento, puede comenzar a disfrutar de todos nuestros servicios financieros.\n\nEn breve recibirá un correo con los pasos para configurar su acceso a la banca en línea.\n\nGracias por confiar en nosotros.`
+            body: `Estimado cliente,\n\nEs un placer informarle que su solicitud de cuenta en Astra Bank ha sido APROBADA. A partir de este momento, puede comenzar a disfrutar de todos nuestros servicios financieros.\n\nGracias por confiar en nosotros.`
         },
         'REJECTED': {
             subject: 'Información sobre su solicitud - Astra Bank',

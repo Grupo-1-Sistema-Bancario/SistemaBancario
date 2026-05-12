@@ -2,6 +2,7 @@ import PendingAccount from './pendingAccounts.model.js';
 import Account from '../accounts/account.model.js';
 import fetch from 'node-fetch';
 import axios from 'axios';
+import { mongo } from 'mongoose';
 
 export const saveRequest = async (req, res) => {
     try {
@@ -46,7 +47,6 @@ export const getPendingBankUsers = async (req, res) => {
                 return null;
             }
 
-            // Solo si está verificado (Regla de Astra Bank)
             if (baseUser.isEmailVerified) {
                 return {
                     id: baseUser.id,
@@ -58,6 +58,7 @@ export const getPendingBankUsers = async (req, res) => {
                     address: request.address,
                     phone: request.phone,
                     jobType: request.jobType,
+                    monthlyIncome: request.monthlyIncome,
                     requestId: request._id
                 };
             }

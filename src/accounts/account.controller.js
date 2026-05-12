@@ -62,24 +62,21 @@ export const createAccount = async (req, res) => {
             
         );
 
-        // Enviar correo al cliente sobre la aprobación de su cuenta
-        const userResponse = await fetch(`http://localhost:5023/api/v1/users/by-role/USER_ROLE`, {
-            headers: { 'Authorization': req.headers.authorization }
-        });
+        const requestClient = await PendingAccount.findOne({ authAccountId });
 
 
-        if (!userResponse.ok) {
-            return res.status(404).json({
-                success: false,
-                message: 'No se pudo obtener la información del cliente.'
-            });
+        if (!requestClient) {
+            return res.status(404).json({ success: false, message: "Solicitud no encontrada" });
         }
 
+        console.log("Intentando enviar correo a:", requestClient.email);
 
-        const userData = await userResponse.json();
-        console.log(userData.email);
-        console.log("Enviando correo a:", userData.email);
-        await sendEmail(userData.email, 'APPROVED');
+        if (!requestClient.email) {
+            throw new Error("La solicitud no tiene un correo electrónico válido para enviar la notificación.");
+        }
+
+        await sendEmail(requestClient.email, 'APPROVED');
+
 
         res.status(201).json({
             success: true,
