@@ -2,6 +2,8 @@ import PendingAccount from './pendingAccounts.model.js';
 import Account from '../accounts/account.model.js';
 import fetch from 'node-fetch';
 import axios from 'axios';
+import { sendEmail } from '../../helpers/email-service.js';
+import { mongo } from 'mongoose';
 
 export const saveRequest = async (req, res) => {
     try {
@@ -23,7 +25,6 @@ export const getPendingBankUsers = async (req, res) => {
         });
 
         if (!authResponse.ok) {
-            // Agregamos otro log para ver qué nos dice .NET exactamente
             const errorText = await authResponse.text();
             console.log("ERROR DE .NET:", authResponse.status, errorText);
 
@@ -34,7 +35,7 @@ export const getPendingBankUsers = async (req, res) => {
 
         const safeAuthUsers = Array.isArray(authUsers) ? authUsers : [];
 
-        const pendingRequests = await PendingAccount.find();
+        const pendingRequests = await PendingAccount.find({ status: 'PENDING' });
 
         const existingAccounts = await Account.find({}, 'authAccountId');
         const existingAuthIds = existingAccounts.map(acc => acc.authAccountId);
@@ -46,7 +47,6 @@ export const getPendingBankUsers = async (req, res) => {
                 return null;
             }
 
-            // Solo si está verificado (Regla de Astra Bank)
             if (baseUser.isEmailVerified) {
                 return {
                     id: baseUser.id,
@@ -58,6 +58,7 @@ export const getPendingBankUsers = async (req, res) => {
                     address: request.address,
                     phone: request.phone,
                     jobType: request.jobType,
+                    monthlyIncome: request.monthlyIncome,
                     requestId: request._id
                 };
             }
@@ -80,3 +81,32 @@ export const getPendingBankUsers = async (req, res) => {
     }
 };
 
+export const rejectAccount = async (req, res) => {
+    try {
+        const { authAccountId } = req.params;
+
+        console.log("ID a rechazar:", authAccountId);
+
+        if (!authAccountId) {
+            return res.status(400).json({ success: false, message: "ID no recibido" });
+        }
+
+        const requestDoc = await PendingAccount.findOneAndUpdate(
+            { authAccountId: authAccountId },
+            { status: 'REJECTED' },
+            { returnDocument: 'after' }
+        );
+        
+        if (!requestDoc) {
+            return res.status(404).json({ success: false, message: "Solicitud no encontrada" });
+        }
+        
+        if (requestDoc.email) {
+            await sendEmail(requestDoc.email, 'REJECTED');
+        }
+
+        res.status(200).json({ success: true, message: "Estado actualizado a REJECTED" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};

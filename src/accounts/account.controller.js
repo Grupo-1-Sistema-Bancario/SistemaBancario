@@ -1,6 +1,7 @@
 import Account from './account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
 import PendingAccount from '../pendingAccounts/pendingAccounts.model.js';
+import { sendEmail } from '../../helpers/email-service.js';
 
 export const createAccount = async (req, res) => {
     try {
@@ -58,7 +59,24 @@ export const createAccount = async (req, res) => {
             { authAccountId },
             { status: 'APPROVED' },
             { new: true }
+            
         );
+
+        const requestClient = await PendingAccount.findOne({ authAccountId });
+
+
+        if (!requestClient) {
+            return res.status(404).json({ success: false, message: "Solicitud no encontrada" });
+        }
+
+        console.log("Intentando enviar correo a:", requestClient.email);
+
+        if (!requestClient.email) {
+            throw new Error("La solicitud no tiene un correo electrónico válido para enviar la notificación.");
+        }
+
+        await sendEmail(requestClient.email, 'APPROVED');
+
 
         res.status(201).json({
             success: true,
