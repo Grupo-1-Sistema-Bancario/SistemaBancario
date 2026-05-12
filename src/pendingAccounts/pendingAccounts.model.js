@@ -20,7 +20,6 @@ const pendingAccountSchema = mongoose.Schema(
         email: {
             type: String,
             required: true,
-            unique: true,
             match: [/.+@.+\..+/, 'El correo electrónico debe ser válido']
         },
         jobType: {
