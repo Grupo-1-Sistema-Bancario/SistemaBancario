@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { createProduct, getProducts, getProductById, updateProduct, changeProductStatus, getProductsWithCurrencies } from './product.controller.js';
+import { createProduct, getProducts, getProductById, updateProduct, changeProductStatus, getProductsWithCurrencies, acquireProduct, getMyProducts } from './product.controller.js';
 import { validateCreateProduct, validateUpdateProductRequest, validateProductStatusChange, validateGetProductById } from '../../middlewares/products-validators.js';
+import { validateJWT } from '../../middlewares/validate-JWT.js';
 
 const router = Router();
 
@@ -15,19 +16,36 @@ router.get(
     getProducts
 )
 
-router.get('/:id', validateGetProductById, getProductById);
+router.get(
+    '/my-products',
+    validateJWT,
+    getMyProducts
+)
+
+router.get(
+    '/:id', 
+    validateGetProductById, 
+    getProductById
+);
 
 router.put(
     '/:id',
     validateUpdateProductRequest,
     updateProduct
 );
+
 router.put('/:id/activate', validateProductStatusChange, changeProductStatus);
 router.put('/:id/deactivate', validateProductStatusChange, changeProductStatus);
 
 router.get(
     '/get/currencies',
     getProductsWithCurrencies
+);
+
+router.post(
+    '/acquire',
+    validateJWT,
+    acquireProduct
 );
 
 export default router;
