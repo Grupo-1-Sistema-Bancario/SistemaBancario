@@ -5,7 +5,7 @@ const accountSchema = mongoose.Schema(
         authAccountId: {
             type: String,
             required: [true, 'El ID de autenticación es obligatorio'],
-            unique: true 
+            unique: true
         },
         accountNumber: {
             type: String,
@@ -36,7 +36,7 @@ const accountSchema = mongoose.Schema(
         },
         balance: {
             type: Number,
-            default: 0 
+            default: 0
         },
         isActive: {
             type: Boolean,
@@ -49,7 +49,12 @@ const accountSchema = mongoose.Schema(
         loyaltyPoints: {
             type: Number,
             default: 0
-        }
+        },
+        acquiredProducts: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product',
+            default: []
+        }]
     },
     {
         timestamps: true,

@@ -1,5 +1,6 @@
 import { parse } from 'dotenv';
 import Product from './product.model.js';
+import Account from '../accounts/account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
 
 export const createProduct = async (req, res) => {
@@ -211,5 +212,39 @@ export const getProductsWithCurrencies = async (req, res) => {
             message: 'Error al obtener los productos con divisas',
             error: error.message
         });
+    }
+};
+
+export const acquireProduct = async (req, res) => {
+    try {
+        const { productId } = req.body;
+        const authId = req.account.id;
+
+        const account = await Account.findOne({ authAccountId: authId });
+        if (!account) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
+
+        if (account.acquiredProducts.includes(productId)) {
+            return res.status(400).json({ success: false, message: 'Ya tienes este producto' });
+        }
+
+        account.acquiredProducts.push(productId);
+        await account.save();
+
+        res.status(200).json({ success: true, message: 'Producto adquirido con éxito' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error al adquirir producto', error: error.message });
+    }
+};
+
+export const getMyProducts = async (req, res) => {
+    try {
+        const authId = req.account.id;
+        const account = await Account.findOne({ authAccountId: authId }).populate('acquiredProducts');
+        
+        if (!account) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
+
+        res.status(200).json({ success: true, data: account.acquiredProducts });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error al obtener tus productos', error: error.message });
     }
 };
