@@ -16,35 +16,26 @@ const validateAmount =
 
 export const validateCreateTransfer = [
     validateJWT,
-    body('accountNumberFrom')
-        .notEmpty()
-        .withMessage('El número de cuenta de origen es requerido')
-        .isLength({ min: 10, max: 10 })
-        .withMessage('El número de cuenta debe tener 10 dígitos'),
     body('accountNumberTo')
         .notEmpty()
         .withMessage('El número de cuenta de destino es requerido')
         .isLength({ min: 10, max: 10 })
         .withMessage('El número de cuenta debe tener 10 dígitos'),
-body('description')
-    .optional()
-    .isString()
-    .withMessage('La descripción debe ser una cadena de texto')
-    .isLength({ max: 255 })
-    .withMessage('La descripción no puede exceder los 255 caracteres'),
+    body('description')
+        .optional()
+        .isString()
+        .withMessage('La descripción debe ser una cadena de texto')
+        .isLength({ max: 255 })
+        .withMessage('La descripción no puede exceder los 255 caracteres'),
     validateAmount,
     checkValidators
-]
+];
+
 export const validateCreatePayment = [
     validateJWT,
     body('type')
         .isIn(['PAYMENT'])
         .withMessage('El tipo de transacción debe ser PAYMENT'),
-    body('accountNumberFrom')
-        .notEmpty()
-        .withMessage('La cuenta de origen es requerida')
-        .isLength({ min: 10, max: 10 })
-        .withMessage('El número de cuenta debe tener 10 dígitos'),
     body('product')
         .optional()
         .isMongoId()

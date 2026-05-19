@@ -1,5 +1,6 @@
 import { parse } from 'dotenv';
 import Product from './product.model.js';
+import Account from '../accounts/account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
 
 export const createProduct = async (req, res) => {
@@ -173,7 +174,24 @@ export const getProductsWithCurrencies = async (req, res) => {
             .sort(options.sort);
 
         const total = await Product.countDocuments(filter);
-        const rates = await getExchangeRates();
+        let rates = {};
+        try {
+            // Intentamos traer las tasas reales en tiempo real
+            rates = await getExchangeRates();
+        } catch (apiError) {
+            console.warn("API de FastForex falló. Usando tasas de respaldo locales.");
+            rates = {
+                USD: 0.13,
+                EUR: 0.12,
+                MXN: 2.15,
+                RUB: 12.10,
+                JPY: 19.80,
+                GBP: 0.10,
+                CHF: 0.11,
+                CNY: 0.92,
+                BTC: 0.0000014
+            };
+        }
 
         const productsWithPrices = products.map(product => {
             const doc = product.toObject();
@@ -190,7 +208,7 @@ export const getProductsWithCurrencies = async (req, res) => {
                     GBP: parseFloat((doc.price * (rates.GBP || 0)).toFixed(2)),
                     CHF: parseFloat((doc.price * (rates.CHF || 0)).toFixed(2)),
                     CNY: parseFloat((doc.price * (rates.CNY || 0)).toFixed(2)),
-                    BTC: parseFloat((doc.price * (rates.BTC || 0)).toFixed(2)),
+                    BTC: parseFloat((doc.price * (rates.BTC || 0)).toFixed(6)), 
                 }
             };
         });
@@ -211,5 +229,43 @@ export const getProductsWithCurrencies = async (req, res) => {
             message: 'Error al obtener los productos con divisas',
             error: error.message
         });
+    }
+};
+
+export const acquireProduct = async (req, res) => {
+    try {
+        const { productId } = req.body;
+        const authId = req.account.id;
+
+        const account = await Account.findOne({ authAccountId: authId });
+        if (!account) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
+
+        if (account.acquiredProducts.includes(productId)) {
+            return res.status(400).json({ success: false, message: 'Ya tienes este producto' });
+        }
+
+        account.acquiredProducts.push(productId);
+        await account.save();
+
+        res.status(200).json({ success: true, message: 'Producto adquirido con éxito' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error al adquirir producto', error: error.message });
+    }
+};
+
+export const getMyProducts = async (req, res) => {
+    try {
+        const authId = req.account.id;
+        const account = await Account.findOne({ authAccountId: authId }).populate('acquiredProducts');
+
+        if (!account) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
+
+        res.status(200).json({
+            success: true,
+            data: account.acquiredProducts,
+            loyaltyPoints: account.loyaltyPoints
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error al obtener tus productos', error: error.message });
     }
 };

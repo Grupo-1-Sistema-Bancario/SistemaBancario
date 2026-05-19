@@ -5,12 +5,14 @@ import Product from '../products/product.model.js';
 
 export const createTransfer = async (req, res) => {
     try {
-        const { accountNumberFrom, accountNumberTo, amount, description } = req.body;
+        const { accountNumberTo, amount, description } = req.body;
 
-        const originAccount = await Account.findOne({ accountNumber: accountNumberFrom });
+        const authId = req.account.id;
+
+        const originAccount = await Account.findOne({ authAccountId: authId });
         const destAccount = await Account.findOne({ accountNumber: accountNumberTo });
 
-        if (!originAccount) return res.status(404).json({ success: false, message: 'Cuenta de origen no encontrada' });
+        if (!originAccount) return res.status(404).json({ success: false, message: 'Tu cuenta de origen no fue encontrada' });
         if (!destAccount) return res.status(404).json({ success: false, message: 'Cuenta de destino no encontrada' });
 
         if (originAccount.id === destAccount.id) {
@@ -71,35 +73,69 @@ export const createTransfer = async (req, res) => {
 
 export const createPayment = async (req, res) => {
     try {
-        const { accountNumberFrom, product } = req.body;
+        // Ya no pedimos accountNumberFrom del req.body
+        const { product, usePoints = false } = req.body;
 
-        // Buscar cuenta de origen por número de cuenta
-        const originAccount = await Account.findOne({ accountNumber: accountNumberFrom });
-        if (!originAccount) return res.status(404).json({ success: false, message: 'Cuenta de origen no encontrada' });
+        // Sacamos el ID del token JWT
+        const authId = req.account.id;
+
+        // Buscamos la cuenta usando el ID del token
+        const originAccount = await Account.findOne({ authAccountId: authId });
+        if (!originAccount) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
 
         const productObj = await Product.findById(product);
         if (!productObj) return res.status(404).json({ success: false, message: 'Producto no encontrado' });
 
-        const amount = productObj.price;
+        let amountToPay = productObj.price;
+        let pointsUsed = 0;
 
-        if (originAccount.balance < amount) {
+        // Lógica de canje de puntos
+        if (usePoints && originAccount.loyaltyPoints > 0) {
+            if (originAccount.loyaltyPoints >= amountToPay) {
+                pointsUsed = amountToPay;
+                amountToPay = 0; // El producto sale gratis
+            } else {
+                pointsUsed = originAccount.loyaltyPoints;
+                amountToPay -= pointsUsed; // Descuento parcial
+            }
+        }
+
+        if (originAccount.balance < amountToPay) {
             return res.status(400).json({ success: false, message: 'Fondos insuficientes' });
         }
+
+        // Calcular nuevos puntos ganados (solo sobre el dinero real pagado, 1 punto por cada Q10)
+        const pointsEarned = Math.floor(amountToPay / 10);
 
         const transaction = new Transaction({
             accountFrom: originAccount._id,
             type: 'PAYMENT',
-            amount,
+            amount: productObj.price,
             product: productObj._id,
-            description: `Pago de servicio/producto: ${productObj.name}`
+            description: `Pago de: ${productObj.name}. Puntos usados: ${pointsUsed}. Puntos ganados: ${pointsEarned}`
         });
 
         await transaction.save();
 
-        // Actualizar saldo de la cuenta de origen
-        await Account.findByIdAndUpdate(originAccount._id, { $inc: { balance: -amount } });
+        originAccount.balance -= amountToPay;
+        originAccount.loyaltyPoints = (originAccount.loyaltyPoints - pointsUsed) + pointsEarned;
+        
+        originAccount.acquiredProducts = originAccount.acquiredProducts.filter(
+            (acquiredId) => acquiredId.toString() !== productObj._id.toString()
+        );
 
-        res.status(201).json({ success: true, message: 'Pago realizado con éxito', data: transaction });
+        await originAccount.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Pago procesado',
+            data: {
+                transaction,
+                discountApplied: pointsUsed,
+                pointsEarned,
+                newLoyaltyBalance: originAccount.loyaltyPoints
+            }
+        });
 
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error en pago', error: error.message });
@@ -336,9 +372,9 @@ export const getLastFiveMovementsByAccount = async (req, res) => {
 export const getMyTransactionHistory = async (req, res) => {
     try {
         const authId = req.account.id;
-        
+
         const account = await Account.findOne({ authAccountId: authId });
-        
+
         if (!account) {
             return res.status(404).json({
                 success: false,
@@ -352,10 +388,10 @@ export const getMyTransactionHistory = async (req, res) => {
                 { accountTo: account._id }
             ]
         })
-        .sort({ createdAt: -1 }) // Orden descendente (más recientes primero)
-        .populate('accountFrom', 'accountNumber') 
-        .populate('accountTo', 'accountNumber')
-        .populate('product', 'name'); // Trae el nombre del producto si fue un pago
+            .sort({ createdAt: -1 }) // Orden descendente (más recientes primero)
+            .populate('accountFrom', 'accountNumber')
+            .populate('accountTo', 'accountNumber')
+            .populate('product', 'name'); // Trae el nombre del producto si fue un pago
 
         res.status(200).json({
             success: true,
@@ -367,6 +403,67 @@ export const getMyTransactionHistory = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error al obtener el historial de transacciones',
+            error: error.message
+        });
+    }
+};
+
+export const getAllDeposits = async (req, res) => {
+    try {
+        const history = await Transaction.find({ type: 'DEPOSIT' })
+            .sort({ createdAt: -1 }) // Orden descendente (más recientes primero)
+            .populate('accountFrom', 'accountNumber')
+            .populate('accountTo', 'accountNumber')
+
+        res.status(200).json({
+            success: true,
+            total: history.length,
+            data: history
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener el historial de depósitos',
+            error: error.message
+        });
+    }
+};
+
+export const getAllTransactions = async (req, res) => {
+    try {
+        const history = await Transaction.find()
+            .sort({ createdAt: -1 }) // Orden descendente (más recientes primero)
+            .populate('accountFrom', 'accountNumber user')
+            .populate('accountTo', 'accountNumber user')
+            .populate('product', 'name price');
+
+        // Enriquecer con información de usuario
+        const enrichedHistory = await Promise.all(
+            history.map(async (transaction) => {
+                const transactionObj = transaction.toObject();
+                
+                if (transactionObj.accountFrom?.user) {
+                    transactionObj.fromUserName = transactionObj.accountFrom.user;
+                }
+                if (transactionObj.accountTo?.user) {
+                    transactionObj.toUserName = transactionObj.accountTo.user;
+                }
+                
+                return transactionObj;
+            })
+        );
+
+        res.status(200).json({
+            success: true,
+            total: enrichedHistory.length,
+            data: enrichedHistory
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener todas las transacciones',
             error: error.message
         });
     }

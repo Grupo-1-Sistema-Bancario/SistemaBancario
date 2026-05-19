@@ -6,7 +6,8 @@ import {
     updateAccount, 
     changeAccountStatus,
     getAllAccounts,
-    getMyAccountWithCurrencies
+    getMyAccountWithCurrencies,
+    getPendingBankUsers
 } from './account.controller.js';
 
 import { 
@@ -64,6 +65,13 @@ router.get(
     '/my-account/currencies',
     validateJWT,
     getMyAccountWithCurrencies
+);
+
+router.get(
+    '/pending',
+    validateJWT,
+    requireRole('ADMIN_ROLE'),
+    getPendingBankUsers
 );
 
 export default router;

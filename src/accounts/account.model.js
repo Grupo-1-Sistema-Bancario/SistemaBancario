@@ -5,7 +5,7 @@ const accountSchema = mongoose.Schema(
         authAccountId: {
             type: String,
             required: [true, 'El ID de autenticación es obligatorio'],
-            unique: true 
+            unique: true
         },
         accountNumber: {
             type: String,
@@ -36,12 +36,25 @@ const accountSchema = mongoose.Schema(
         },
         balance: {
             type: Number,
-            default: 0 
+            default: 0
         },
         isActive: {
             type: Boolean,
             default: true
-        }
+        },
+        role: {
+            type: String,
+            enum: ['USER_ROLE', 'ADMIN_ROLE'],
+        },
+        loyaltyPoints: {
+            type: Number,
+            default: 0
+        },
+        acquiredProducts: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product',
+            default: []
+        }]
     },
     {
         timestamps: true,
@@ -51,5 +64,6 @@ const accountSchema = mongoose.Schema(
 
 accountSchema.index({ accountNumber: 1 });
 accountSchema.index({ authAccountId: 1 });
+accountSchema.index({ role: 1 });
 
 export default mongoose.model('Account', accountSchema);

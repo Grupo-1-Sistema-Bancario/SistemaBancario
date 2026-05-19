@@ -1,12 +1,14 @@
 import Account from './account.model.js';
 import { getExchangeRates } from '../../utils/currency.service.js';
+import PendingAccount from '../pendingAccounts/pendingAccounts.model.js';
+import { sendEmail } from '../../helpers/email-service.js';
 
 export const createAccount = async (req, res) => {
     try {
-        const { authAccountId, dpi, address, phone, jobName, monthlyIncome } = req.body; 
+        const { authAccountId, dpi, address, phone, jobName, monthlyIncome } = req.body;
 
         if (!authAccountId) {
-             return res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Debes proporcionar el ID de la cuenta a la que le vas a crear la cuenta bancaria.'
             });
@@ -19,6 +21,22 @@ export const createAccount = async (req, res) => {
             });
         }
 
+        //Consultar el rol real a .NET
+        // Reenviamos el token del administrador actual para tener permisos
+        const roleResponse = await fetch(`http://localhost:5023/api/v1/users/${authAccountId}/roles`, {
+            headers: { 'Authorization': req.headers.authorization }
+        });
+
+        if (!roleResponse.ok) {
+            return res.status(404).json({
+                success: false,
+                message: 'No se pudo verificar el rol del usuario. Asegúrate de que el authAccountId exista en el AuthService.'
+            });
+        }
+
+        const rolesArray = await roleResponse.json();
+        const finalRole = rolesArray.includes('ADMIN_ROLE') ? 'ADMIN_ROLE' : 'USER_ROLE';
+
         const generatedAccountNumber = Math.floor(Math.random() * 9000000000) + 1000000000;
 
         const accountData = {
@@ -29,11 +47,38 @@ export const createAccount = async (req, res) => {
             phone,
             jobName,
             monthlyIncome,
-            balance: 0 
+            balance: 0,
+            role: finalRole // Ahora el rol está sincronizado con .NET
         };
 
         const newAccount = new Account(accountData);
         await newAccount.save();
+
+        // Cambiar estado de la solicitud pendiente a "APPROVED" si existe
+        await PendingAccount.findOneAndUpdate(
+            { authAccountId },
+            { status: 'APPROVED' },
+            { new: true }
+
+        );
+
+        const requestClient = await PendingAccount.findOne({ authAccountId });
+
+        if (!requestClient) {
+            return res.status(404).json({ success: false, message: "Solicitud no encontrada" });
+        }
+
+        console.log("Intentando enviar correo a:", requestClient.email);
+
+        if (!requestClient.email) {
+            console.warn("La solicitud no tiene un correo electrónico válido, omitiendo notificación.");
+        } else {
+            try {
+                await sendEmail(requestClient.email, 'APPROVED');
+            } catch (emailError) {
+                console.error("La cuenta se creó, pero falló el envío del correo:", emailError.message);
+            }
+        }
 
         res.status(201).json({
             success: true,
@@ -59,7 +104,7 @@ export const createAccount = async (req, res) => {
 
 export const getMyAccount = async (req, res) => {
     try {
-        const authId = req.account.id; 
+        const authId = req.account.id;
         const account = await Account.findOne({ authAccountId: authId });
 
         if (!account) {
@@ -85,11 +130,46 @@ export const getMyAccount = async (req, res) => {
 export const getAllAccounts = async (req, res) => {
     try {
         const accounts = await Account.find();
-        
+
+        const fetchUsersByRole = async (roleName) => {
+            const authResponse = await fetch(`http://localhost:5023/api/v1/users/by-role/${roleName}`, {
+                headers: { Authorization: req.headers.authorization }
+            });
+
+            if (!authResponse.ok) {
+                return [];
+            }
+
+            const users = await authResponse.json();
+            return Array.isArray(users) ? users : [];
+        };
+
+        const [userRoleUsers, adminRoleUsers] = await Promise.all([
+            fetchUsersByRole('USER_ROLE'),
+            fetchUsersByRole('ADMIN_ROLE')
+        ]);
+
+        const authUsersMap = new Map(
+            [...userRoleUsers, ...adminRoleUsers].map((user) => [user.id, user])
+        );
+
+        const enrichedAccounts = accounts.map((account) => {
+            const authUser = authUsersMap.get(account.authAccountId);
+            const accountObj = account.toObject();
+
+            return {
+                ...accountObj,
+                name: authUser?.name ?? '',
+                surname: authUser?.surname ?? '',
+                username: authUser?.username ?? '',
+                email: authUser?.email ?? ''
+            };
+        });
+
         res.status(200).json({
             success: true,
-            total: accounts.length,
-            data: accounts
+            total: enrichedAccounts.length,
+            data: enrichedAccounts
         });
     } catch (error) {
         res.status(500).json({
@@ -105,7 +185,7 @@ export const updateAccount = async (req, res) => {
         const { id } = req.params;
         const { address, phone, jobName, monthlyIncome } = req.body;
 
-        const currentAccount = await Account.findById(id); 
+        const currentAccount = await Account.findById(id);
         if (!currentAccount) {
             return res.status(404).json({
                 success: false,
@@ -113,10 +193,17 @@ export const updateAccount = async (req, res) => {
             });
         }
 
+        if (req.account.role === 'ADMIN_ROLE' && currentAccount.role === 'ADMIN_ROLE' && currentAccount.authAccountId !== req.account.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Acceso denegado: No puedes editar los datos bancarios de otro administrador.'
+            });
+        }
+
         if (req.account.role !== 'ADMIN_ROLE' && currentAccount.authAccountId !== req.account.id) {
             return res.status(403).json({
                 success: false,
-                message: 'Acceso denegado. No tienes permisos para editar la cuenta de otra cuenta.',
+                message: 'Acceso denegado: No tienes permisos para editar la cuenta de otro usuario.',
             });
         }
 
@@ -125,7 +212,7 @@ export const updateAccount = async (req, res) => {
         if (phone) updateData.phone = phone;
         if (jobName) updateData.jobName = jobName;
         if (monthlyIncome) updateData.monthlyIncome = monthlyIncome;
-        
+
         const updatedAccount = await Account.findByIdAndUpdate(id, updateData, {
             new: true,
             runValidators: true,
@@ -149,7 +236,7 @@ export const changeAccountStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const isActive = req.url.includes('/activate');
-        const action = isActive ? 'desbloqueada' : 'bloqueada'; 
+        const action = isActive ? 'desbloqueada' : 'bloqueada';
 
         const account = await Account.findByIdAndUpdate(
             id,
@@ -180,7 +267,7 @@ export const changeAccountStatus = async (req, res) => {
 
 export const getMyAccountWithCurrencies = async (req, res) => {
     try {
-        const authId = req.account.id; 
+        const authId = req.account.id;
         const account = await Account.findOne({ authAccountId: authId });
 
         if (!account) {
@@ -190,7 +277,24 @@ export const getMyAccountWithCurrencies = async (req, res) => {
             });
         }
 
-        const rates = await getExchangeRates();
+        let rates = {};
+        try {
+            rates = await getExchangeRates();
+        } catch (apiError) {
+            console.warn("API de FastForex falló. Usando tasas de respaldo locales.");
+            rates = {
+                USD: 0.13,   // 1 GTQ = 0.13 USD aproximadamente
+                EUR: 0.12,
+                MXN: 2.15,
+                RUB: 12.10,
+                JPY: 19.80,
+                GBP: 0.10,
+                CHF: 0.11,
+                CNY: 0.92,
+                BTC: 0.0000014 
+            };
+        }
+
         const balanceUSD = parseFloat((account.balance * (rates.USD || 0)).toFixed(2));
         const balanceEUR = parseFloat((account.balance * (rates.EUR || 0)).toFixed(2));
         const balanceMXN = parseFloat((account.balance * (rates.MXN || 0)).toFixed(2));
@@ -199,7 +303,7 @@ export const getMyAccountWithCurrencies = async (req, res) => {
         const balanceGBP = parseFloat((account.balance * (rates.GBP || 0)).toFixed(2));
         const balanceCHF = parseFloat((account.balance * (rates.CHF || 0)).toFixed(2));
         const balanceCNY = parseFloat((account.balance * (rates.CNY || 0)).toFixed(2));
-        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(2));
+        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(6)); 
 
         res.status(200).json({
             success: true,
@@ -221,8 +325,46 @@ export const getMyAccountWithCurrencies = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error al obtener la cuenta con divisas',
+            message: 'Error interno al procesar la cuenta con divisas',
             error: error.message,
+        });
+    }
+};
+
+export const getPendingBankUsers = async (req, res) => {
+    try {
+        //Obtener todos los usuarios "USER_ROLE" desde el AuthService (.NET)
+        //Reenviamos el token JWT del administrador actual para tener permisos
+        const authResponse = await fetch('http://localhost:5023/api/v1/users/by-role/USER_ROLE', {
+            headers: { 'Authorization': req.headers.authorization }
+        });
+
+        if (!authResponse.ok) {
+            throw new Error('Error de comunicación con el servicio de autenticación');
+        }
+
+        const authUsers = await authResponse.json();
+
+        //Obtener todas las cuentas bancarias registradas en Mongo
+        const existingAccounts = await Account.find({}, 'authAccountId');
+        const existingAuthIds = existingAccounts.map(acc => acc.authAccountId);
+
+        //Filtrar los usuarios que están verificados pero no existen en Mongo
+        const usersWithoutBankAccount = authUsers.filter(user =>
+            user.isEmailVerified && !existingAuthIds.includes(user.id)
+        );
+
+        res.status(200).json({
+            success: true,
+            total: usersWithoutBankAccount.length,
+            data: usersWithoutBankAccount
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al cruzar datos para obtener usuarios pendientes',
+            error: error.message
         });
     }
 };
