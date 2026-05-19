@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { validateEditTransaction, validateCreateDeposit, validateCreatePayment, validateCreateTransfer, validateReverseDeposit, validateGetTopAccounts, validateGetLastFiveMovementsByAccount } from "../../middlewares/transaction-validators.js";
-import { createDeposit, createPayment, createTransfer, editDeposit, reverseDeposit, getTopAccounts, getLastFiveMovementsByAccount, getMyTransactionHistory, getAllDeposits } from "./transaction.controller.js";
+import { createDeposit, createPayment, createTransfer, editDeposit, reverseDeposit, getTopAccounts, getLastFiveMovementsByAccount, getMyTransactionHistory, getAllDeposits, getAllTransactions } from "./transaction.controller.js";
 import { validateJWT } from '../../middlewares/validate-JWT.js';
 
 const router = Router();
@@ -48,6 +48,12 @@ router.get(
     '/deposits',
     validateJWT,
     getAllDeposits
+);
+
+router.get(
+    '/all',
+    validateJWT,
+    getAllTransactions
 );
 
 export default router;

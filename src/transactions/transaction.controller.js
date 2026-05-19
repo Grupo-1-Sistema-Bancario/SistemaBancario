@@ -429,3 +429,42 @@ export const getAllDeposits = async (req, res) => {
         });
     }
 };
+
+export const getAllTransactions = async (req, res) => {
+    try {
+        const history = await Transaction.find()
+            .sort({ createdAt: -1 }) // Orden descendente (más recientes primero)
+            .populate('accountFrom', 'accountNumber user')
+            .populate('accountTo', 'accountNumber user')
+            .populate('product', 'name price');
+
+        // Enriquecer con información de usuario
+        const enrichedHistory = await Promise.all(
+            history.map(async (transaction) => {
+                const transactionObj = transaction.toObject();
+                
+                if (transactionObj.accountFrom?.user) {
+                    transactionObj.fromUserName = transactionObj.accountFrom.user;
+                }
+                if (transactionObj.accountTo?.user) {
+                    transactionObj.toUserName = transactionObj.accountTo.user;
+                }
+                
+                return transactionObj;
+            })
+        );
+
+        res.status(200).json({
+            success: true,
+            total: enrichedHistory.length,
+            data: enrichedHistory
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener todas las transacciones',
+            error: error.message
+        });
+    }
+};
