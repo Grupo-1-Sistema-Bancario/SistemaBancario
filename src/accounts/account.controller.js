@@ -5,10 +5,10 @@ import { sendEmail } from '../../helpers/email-service.js';
 
 export const createAccount = async (req, res) => {
     try {
-        const { authAccountId, dpi, address, phone, jobName, monthlyIncome } = req.body; 
+        const { authAccountId, dpi, address, phone, jobName, monthlyIncome } = req.body;
 
         if (!authAccountId) {
-             return res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Debes proporcionar el ID de la cuenta a la que le vas a crear la cuenta bancaria.'
             });
@@ -59,7 +59,7 @@ export const createAccount = async (req, res) => {
             { authAccountId },
             { status: 'APPROVED' },
             { new: true }
-            
+
         );
 
         const requestClient = await PendingAccount.findOne({ authAccountId });
@@ -71,13 +71,13 @@ export const createAccount = async (req, res) => {
         console.log("Intentando enviar correo a:", requestClient.email);
 
         if (!requestClient.email) {
-             console.warn("La solicitud no tiene un correo electrónico válido, omitiendo notificación.");
+            console.warn("La solicitud no tiene un correo electrónico válido, omitiendo notificación.");
         } else {
-             try {
-                 await sendEmail(requestClient.email, 'APPROVED');
-             } catch (emailError) {
-                 console.error("La cuenta se creó, pero falló el envío del correo:", emailError.message);
-             }
+            try {
+                await sendEmail(requestClient.email, 'APPROVED');
+            } catch (emailError) {
+                console.error("La cuenta se creó, pero falló el envío del correo:", emailError.message);
+            }
         }
 
         res.status(201).json({
@@ -104,7 +104,7 @@ export const createAccount = async (req, res) => {
 
 export const getMyAccount = async (req, res) => {
     try {
-        const authId = req.account.id; 
+        const authId = req.account.id;
         const account = await Account.findOne({ authAccountId: authId });
 
         if (!account) {
@@ -165,7 +165,7 @@ export const getAllAccounts = async (req, res) => {
                 email: authUser?.email ?? ''
             };
         });
-        
+
         res.status(200).json({
             success: true,
             total: enrichedAccounts.length,
@@ -185,7 +185,7 @@ export const updateAccount = async (req, res) => {
         const { id } = req.params;
         const { address, phone, jobName, monthlyIncome } = req.body;
 
-        const currentAccount = await Account.findById(id); 
+        const currentAccount = await Account.findById(id);
         if (!currentAccount) {
             return res.status(404).json({
                 success: false,
@@ -212,7 +212,7 @@ export const updateAccount = async (req, res) => {
         if (phone) updateData.phone = phone;
         if (jobName) updateData.jobName = jobName;
         if (monthlyIncome) updateData.monthlyIncome = monthlyIncome;
-        
+
         const updatedAccount = await Account.findByIdAndUpdate(id, updateData, {
             new: true,
             runValidators: true,
@@ -236,7 +236,7 @@ export const changeAccountStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const isActive = req.url.includes('/activate');
-        const action = isActive ? 'desbloqueada' : 'bloqueada'; 
+        const action = isActive ? 'desbloqueada' : 'bloqueada';
 
         const account = await Account.findByIdAndUpdate(
             id,
@@ -267,7 +267,7 @@ export const changeAccountStatus = async (req, res) => {
 
 export const getMyAccountWithCurrencies = async (req, res) => {
     try {
-        const authId = req.account.id; 
+        const authId = req.account.id;
         const account = await Account.findOne({ authAccountId: authId });
 
         if (!account) {
@@ -277,7 +277,24 @@ export const getMyAccountWithCurrencies = async (req, res) => {
             });
         }
 
-        const rates = await getExchangeRates();
+        let rates = {};
+        try {
+            rates = await getExchangeRates();
+        } catch (apiError) {
+            console.warn("API de FastForex falló. Usando tasas de respaldo locales.");
+            rates = {
+                USD: 0.13,   // 1 GTQ = 0.13 USD aproximadamente
+                EUR: 0.12,
+                MXN: 2.15,
+                RUB: 12.10,
+                JPY: 19.80,
+                GBP: 0.10,
+                CHF: 0.11,
+                CNY: 0.92,
+                BTC: 0.0000014 
+            };
+        }
+
         const balanceUSD = parseFloat((account.balance * (rates.USD || 0)).toFixed(2));
         const balanceEUR = parseFloat((account.balance * (rates.EUR || 0)).toFixed(2));
         const balanceMXN = parseFloat((account.balance * (rates.MXN || 0)).toFixed(2));
@@ -286,7 +303,7 @@ export const getMyAccountWithCurrencies = async (req, res) => {
         const balanceGBP = parseFloat((account.balance * (rates.GBP || 0)).toFixed(2));
         const balanceCHF = parseFloat((account.balance * (rates.CHF || 0)).toFixed(2));
         const balanceCNY = parseFloat((account.balance * (rates.CNY || 0)).toFixed(2));
-        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(2));
+        const balanceBTC = parseFloat((account.balance * (rates.BTC || 0)).toFixed(6)); 
 
         res.status(200).json({
             success: true,
@@ -308,7 +325,7 @@ export const getMyAccountWithCurrencies = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error al obtener la cuenta con divisas',
+            message: 'Error interno al procesar la cuenta con divisas',
             error: error.message,
         });
     }
@@ -333,7 +350,7 @@ export const getPendingBankUsers = async (req, res) => {
         const existingAuthIds = existingAccounts.map(acc => acc.authAccountId);
 
         //Filtrar los usuarios que están verificados pero no existen en Mongo
-        const usersWithoutBankAccount = authUsers.filter(user => 
+        const usersWithoutBankAccount = authUsers.filter(user =>
             user.isEmailVerified && !existingAuthIds.includes(user.id)
         );
 
