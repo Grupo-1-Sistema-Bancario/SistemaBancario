@@ -243,7 +243,11 @@ export const getMyProducts = async (req, res) => {
         
         if (!account) return res.status(404).json({ success: false, message: 'Cuenta no encontrada' });
 
-        res.status(200).json({ success: true, data: account.acquiredProducts });
+        res.status(200).json({ 
+            success: true, 
+            data: account.acquiredProducts,
+            loyaltyPoints: account.loyaltyPoints
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error al obtener tus productos', error: error.message });
     }

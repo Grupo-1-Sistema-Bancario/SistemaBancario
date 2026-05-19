@@ -64,7 +64,6 @@ export const createAccount = async (req, res) => {
 
         const requestClient = await PendingAccount.findOne({ authAccountId });
 
-
         if (!requestClient) {
             return res.status(404).json({ success: false, message: "Solicitud no encontrada" });
         }
@@ -72,11 +71,14 @@ export const createAccount = async (req, res) => {
         console.log("Intentando enviar correo a:", requestClient.email);
 
         if (!requestClient.email) {
-            throw new Error("La solicitud no tiene un correo electrónico válido para enviar la notificación.");
+             console.warn("La solicitud no tiene un correo electrónico válido, omitiendo notificación.");
+        } else {
+             try {
+                 await sendEmail(requestClient.email, 'APPROVED');
+             } catch (emailError) {
+                 console.error("La cuenta se creó, pero falló el envío del correo:", emailError.message);
+             }
         }
-
-        await sendEmail(requestClient.email, 'APPROVED');
-
 
         res.status(201).json({
             success: true,
@@ -128,11 +130,46 @@ export const getMyAccount = async (req, res) => {
 export const getAllAccounts = async (req, res) => {
     try {
         const accounts = await Account.find();
+
+        const fetchUsersByRole = async (roleName) => {
+            const authResponse = await fetch(`http://localhost:5023/api/v1/users/by-role/${roleName}`, {
+                headers: { Authorization: req.headers.authorization }
+            });
+
+            if (!authResponse.ok) {
+                return [];
+            }
+
+            const users = await authResponse.json();
+            return Array.isArray(users) ? users : [];
+        };
+
+        const [userRoleUsers, adminRoleUsers] = await Promise.all([
+            fetchUsersByRole('USER_ROLE'),
+            fetchUsersByRole('ADMIN_ROLE')
+        ]);
+
+        const authUsersMap = new Map(
+            [...userRoleUsers, ...adminRoleUsers].map((user) => [user.id, user])
+        );
+
+        const enrichedAccounts = accounts.map((account) => {
+            const authUser = authUsersMap.get(account.authAccountId);
+            const accountObj = account.toObject();
+
+            return {
+                ...accountObj,
+                name: authUser?.name ?? '',
+                surname: authUser?.surname ?? '',
+                username: authUser?.username ?? '',
+                email: authUser?.email ?? ''
+            };
+        });
         
         res.status(200).json({
             success: true,
-            total: accounts.length,
-            data: accounts
+            total: enrichedAccounts.length,
+            data: enrichedAccounts
         });
     } catch (error) {
         res.status(500).json({
