@@ -25,7 +25,7 @@ const middlewares = (app) => {
     app.use(express.json({ limit: '10mb' }));
     app.use(cors(corsOptions));
     app.use(helmet(helmetConfiguration));
-    app.use(requestLimit);
+    //app.use(requestLimit);
     app.use(morgan('dev'));
 }
 
