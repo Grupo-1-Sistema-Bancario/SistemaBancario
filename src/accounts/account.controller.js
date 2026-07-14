@@ -331,6 +331,49 @@ export const getMyAccountWithCurrencies = async (req, res) => {
     }
 };
 
+export const lookupAccountByNumber = async (req, res) => {
+    try {
+        const { accountNumber } = req.params;
+
+        const account = await Account.findOne({ accountNumber, isActive: true });
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'No se encontró ninguna cuenta activa con ese número.'
+            });
+        }
+
+        let ownerName = '';
+        try {
+            const authResponse = await fetch(`http://localhost:5023/api/v1/users/${account.authAccountId}`, {
+                headers: { 'Authorization': req.headers.authorization }
+            });
+
+            if (authResponse.ok) {
+                const authJson = await authResponse.json();
+                const user = authJson.data || authJson;
+                ownerName = [user.name, user.surname].filter(Boolean).join(' ').trim();
+            }
+        } catch (lookupError) {
+            console.warn('No se pudo obtener el nombre del titular:', lookupError.message);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                accountNumber: account.accountNumber,
+                ownerName: ownerName || 'Titular no disponible'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al buscar la cuenta',
+            error: error.message
+        });
+    }
+};
+
 export const getPendingBankUsers = async (req, res) => {
     try {
         //Obtener todos los usuarios "USER_ROLE" desde el AuthService (.NET)

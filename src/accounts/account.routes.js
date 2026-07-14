@@ -1,13 +1,14 @@
 import { Router } from 'express';
 
-import { 
+import {
     createAccount,
-    getMyAccount, 
-    updateAccount, 
+    getMyAccount,
+    updateAccount,
     changeAccountStatus,
     getAllAccounts,
     getMyAccountWithCurrencies,
-    getPendingBankUsers
+    getPendingBankUsers,
+    lookupAccountByNumber
 } from './account.controller.js';
 
 import { 
@@ -65,6 +66,12 @@ router.get(
     '/my-account/currencies',
     validateJWT,
     getMyAccountWithCurrencies
+);
+
+router.get(
+    '/lookup/:accountNumber',
+    validateJWT,
+    lookupAccountByNumber
 );
 
 router.get(
