@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  node-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: node-api
+    ports:
+      - "3008:3007"
+    environment:
+      - PORT=3007
+      - URI_MONGO=${URI_MONGO}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - FASTFOREX_API_KEY=${FASTFOREX_API_KEY}
+      - BASE_CURRENCY=${BASE_CURRENCY}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - EMAIL_FROM=grupo1in6bv@gmail.com
+      - EMAIL_FROM_NAME=Banco App
+    depends_on:
+      - mongodb
+
+volumes:
+  mongodb_data:

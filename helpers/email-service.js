@@ -1,16 +1,6 @@
-import nodemailer from 'nodemailer';
+import axios from 'axios';
 
 export const sendEmail = async (clientEmail, clienteStatus) => {
-    const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT),
-        secure: process.env.SMTP_ENABLE_SSL === 'true',
-        auth: {
-            user: process.env.SMTP_USERNAME,
-            pass: process.env.SMTP_PASSWORD 
-        }
-    });
-
     const statusMessages = {
         'APPROVED': {
             subject: '¡Bienvenido a Astra Bank! - Solicitud Aprobada',
@@ -28,12 +18,36 @@ export const sendEmail = async (clientEmail, clienteStatus) => {
         body: `Estimado cliente, su solicitud se encuentra actualmente en estado: ${clienteStatus}.`
     };
 
-    const mailOptions = {
-        from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM}>`,
-        to: clientEmail,
+    const apiKey = process.env.BREVO_API_KEY;
+    const emailFrom = process.env.EMAIL_FROM || 'grupo1in6bv@gmail.com';
+    const emailFromName = process.env.EMAIL_FROM_NAME || 'Banco App';
+
+    if (!apiKey) {
+        throw new Error('BREVO_API_KEY is not configured in the environment variables');
+    }
+
+    const payload = {
+        sender: {
+            name: emailFromName,
+            email: emailFrom
+        },
+        to: [
+            {
+                email: clientEmail
+            }
+        ],
         subject: message.subject,
-        text: message.body
+        textContent: message.body,
+        htmlContent: `<div style="font-family: sans-serif; line-height: 1.6; color: #333;">${message.body.replace(/\n/g, '<br>')}</div>`
     };
 
-    return transporter.sendMail(mailOptions);
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+        headers: {
+            'api-key': apiKey,
+            'content-type': 'application/json',
+            'accept': 'application/json'
+        }
+    });
+
+    return response.data;
 };
